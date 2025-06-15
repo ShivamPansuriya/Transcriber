@@ -58,6 +58,9 @@ python example_client.py your_video.mp4
 
 # Or test the API directly
 python test_api.py your_video.mp4
+
+# Monitor transcription progress in real-time
+python log_monitor.py upload your_video.mp4
 ```
 
 ### Option C: cURL
@@ -106,6 +109,30 @@ Edit `config.py` to customize:
 - Rate limiting
 - Cleanup intervals
 
+## 📊 Monitoring & Logging
+
+**Enable detailed logging:**
+```bash
+DEBUG=true python main.py
+```
+
+**Monitor transcription progress:**
+```bash
+# Test service
+python log_monitor.py test
+
+# Upload and monitor
+python log_monitor.py upload video.mp4
+
+# Monitor existing transcription
+python log_monitor.py monitor 123
+```
+
+**Log to file:**
+```bash
+LOG_TO_FILE=true python main.py
+```
+
 ## 📖 Need Help?
 
 - **Full documentation**: See README.md
@@ -114,6 +141,9 @@ Edit `config.py` to customize:
 - **Health check**: http://localhost:8000/health
 
 ## 🎯 Common Issues
+
+**"NumPy compatibility error"**
+- Run: `python fix_numpy.py` to fix automatically
 
 **"FFmpeg not found"**
 - Install FFmpeg for your OS (see setup instructions)

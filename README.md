@@ -41,6 +41,43 @@ A free, production-ready video transcription service built with FastAPI and Open
    - Documentation: http://localhost:8000/docs
    - Health Check: http://localhost:8000/health
 
+### Logging and Monitoring
+
+The service provides comprehensive step-by-step logging to track transcription progress:
+
+**Enable Debug Logging:**
+```bash
+DEBUG=true python main.py
+```
+
+**Enable File Logging:**
+```bash
+LOG_TO_FILE=true python main.py
+```
+
+**Sample Log Output:**
+```
+2024-01-15 10:30:00 - main - INFO - 🚀 Starting transcription request for file: video.mp4
+2024-01-15 10:30:00 - main - INFO - 🌐 Language specified: auto-detect
+2024-01-15 10:30:00 - main - INFO - 📁 Validating file: video.mp4
+2024-01-15 10:30:00 - main - INFO - 🔍 File extension: .mp4
+2024-01-15 10:30:00 - main - INFO - ✅ File format validation passed: .mp4
+2024-01-15 10:30:00 - main - INFO - 📊 Reading file content for size validation...
+2024-01-15 10:30:00 - main - INFO - 📏 File size: 25.3MB (max: 100MB)
+2024-01-15 10:30:00 - main - INFO - ✅ File size validation passed: 25.3MB
+2024-01-15 10:30:00 - storage - INFO - 📝 Creating new transcription entry with ID: 1
+2024-01-15 10:30:00 - transcription_service - INFO - 🎬 Starting video transcription for ID: 1
+2024-01-15 10:30:00 - transcription_service - INFO - 🤖 Loading Whisper model: base
+2024-01-15 10:30:15 - transcription_service - INFO - ✅ Whisper model loaded successfully in 15.2 seconds
+2024-01-15 10:30:15 - transcription_service - INFO - 🎵 Extracting audio from video for transcription 1
+2024-01-15 10:30:18 - transcription_service - INFO - ✅ Audio extraction completed in 3.1 seconds
+2024-01-15 10:30:18 - transcription_service - INFO - 🗣️ Starting audio transcription for ID 1
+2024-01-15 10:30:45 - transcription_service - INFO - ✅ Transcription completed in 27.3 seconds
+2024-01-15 10:30:45 - transcription_service - INFO - 📝 Transcribed text length: 1247 characters
+2024-01-15 10:30:45 - transcription_service - INFO - 🌐 Detected language: en
+2024-01-15 10:30:45 - transcription_service - INFO - 🎉 Transcription 1 completed successfully in 45.6 seconds total
+```
+
 ### Deploy to Render.com
 
 1. **Push to GitHub**
@@ -215,23 +252,38 @@ Leave `language` empty for automatic detection.
 
 ### Common Issues
 
-1. **"File too large" Error**
+1. **NumPy Compatibility Error**
+   ```
+   A module that was compiled using NumPy 1.x cannot be run in NumPy 2.2.6
+   ```
+   **Solution:**
+   ```bash
+   python fix_numpy.py
+   ```
+   Or manually:
+   ```bash
+   pip uninstall numpy
+   pip install 'numpy<2.0.0'
+   pip install --force-reinstall torch torchaudio openai-whisper
+   ```
+
+2. **"File too large" Error**
    - Compress your video or use a shorter clip
    - Maximum file size is 100MB
 
-2. **"Unsupported file format" Error**
+3. **"Unsupported file format" Error**
    - Convert to supported format: MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V
 
-3. **Slow Processing**
+4. **Slow Processing**
    - First request loads the AI model (30-60 seconds)
    - Subsequent requests are faster
    - Longer videos take more time
 
-4. **"Transcription not found" Error**
+5. **"Transcription not found" Error**
    - Transcriptions expire after 3.5 hours
    - Check if the ID is correct
 
-5. **Rate Limit Exceeded**
+6. **Rate Limit Exceeded**
    - Wait 1 minute before making more requests
    - Maximum 10 requests per minute per IP
 

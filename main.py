@@ -18,7 +18,11 @@ from storage import storage
 from transcription_service import transcription_service
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+from logging_config import setup_logging, log_step, log_success, log_error, log_info, log_progress_summary
+
+# Setup logging (can be controlled via environment variable)
+log_level = logging.DEBUG if os.getenv("DEBUG", "false").lower() == "true" else logging.INFO
+setup_logging(level=log_level, log_to_file=os.getenv("LOG_TO_FILE", "false").lower() == "true")
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
@@ -49,41 +53,71 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    logger.info("Starting Video Transcription Service")
+    logger.info("🚀 Starting Video Transcription Service")
+    logger.info("=" * 50)
+    logger.info("📋 Service Configuration:")
+    logger.info(f"   🤖 Whisper Model: {settings.WHISPER_MODEL}")
+    logger.info(f"   📏 Max File Size: {settings.MAX_FILE_SIZE // (1024*1024)}MB")
+    logger.info(f"   🕒 Cleanup Interval: {settings.CLEANUP_INTERVAL_HOURS} hours")
+    logger.info(f"   🚦 Rate Limit: {settings.RATE_LIMIT_REQUESTS} requests/minute")
+    logger.info(f"   🌐 Host: {settings.HOST}:{settings.PORT}")
+    logger.info(f"   📁 Supported Formats: {', '.join(settings.ALLOWED_EXTENSIONS)}")
+    logger.info("=" * 50)
+
+    log_step("Initializing storage cleanup task")
     await storage.start_cleanup_task()
+    log_success("Service startup completed")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
-    logger.info("Shutting down Video Transcription Service")
+    logger.info("🛑 Shutting down Video Transcription Service")
+    log_step("Stopping cleanup task")
     await storage.stop_cleanup_task()
+    log_success("Service shutdown completed")
 
 def validate_file(file: UploadFile) -> None:
     """Validate uploaded file"""
+    logger.info(f"📁 Validating file: {file.filename}")
+
     if not file.filename:
+        logger.error("❌ No filename provided")
         raise HTTPException(status_code=400, detail="No file provided")
-    
+
     # Check file extension
     file_ext = Path(file.filename).suffix.lower()
+    logger.info(f"🔍 File extension: {file_ext}")
+
     if file_ext not in settings.ALLOWED_EXTENSIONS:
+        logger.error(f"❌ Unsupported file format: {file_ext}")
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Unsupported file format. Allowed: {', '.join(settings.ALLOWED_EXTENSIONS)}"
         )
 
+    logger.info(f"✅ File format validation passed: {file_ext}")
+
 async def validate_file_size(file: UploadFile) -> bytes:
     """Validate file size and return content"""
+    logger.info(f"📊 Reading file content for size validation...")
     content = await file.read()
-    
+    file_size_mb = len(content) / (1024 * 1024)
+    max_size_mb = settings.MAX_FILE_SIZE // (1024 * 1024)
+
+    logger.info(f"📏 File size: {file_size_mb:.2f}MB (max: {max_size_mb}MB)")
+
     if len(content) > settings.MAX_FILE_SIZE:
+        logger.error(f"❌ File too large: {file_size_mb:.2f}MB > {max_size_mb}MB")
         raise HTTPException(
-            status_code=413, 
-            detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE // (1024*1024)}MB"
+            status_code=413,
+            detail=f"File too large. Maximum size: {max_size_mb}MB"
         )
-    
+
     if len(content) == 0:
+        logger.error("❌ Empty file detected")
         raise HTTPException(status_code=400, detail="Empty file")
-    
+
+    logger.info(f"✅ File size validation passed: {file_size_mb:.2f}MB")
     return content
 
 @app.get("/")
@@ -112,20 +146,27 @@ async def transcribe_video(
     Returns transcription ID for status checking
     """
     try:
+        logger.info(f"🚀 Starting transcription request for file: {file.filename}")
+        logger.info(f"🌐 Language specified: {language or 'auto-detect'}")
+
         # Validate file
         validate_file(file)
-        
+
         # Read and validate file content
         content = await validate_file_size(file)
-        
+
         # Create transcription entry
+        logger.info("📝 Creating transcription entry in storage...")
         transcription_id = storage.create_transcription(language=language)
-        
+        logger.info(f"🆔 Transcription ID created: {transcription_id}")
+
         # Start transcription in background
+        logger.info(f"⚡ Starting background transcription task for ID: {transcription_id}")
         asyncio.create_task(
             transcription_service.transcribe_video(content, transcription_id, language)
         )
-        
+
+        logger.info(f"✅ Transcription request accepted successfully - ID: {transcription_id}")
         return TranscriptionResponse(
             id=transcription_id,
             status=TranscriptionStatus.PENDING,
@@ -156,9 +197,11 @@ async def get_transcription(transcription_id: int):
     Returns transcription status and text (if completed)
     """
     try:
+        logger.info(f"🔍 Looking up transcription ID: {transcription_id}")
         result = storage.get_transcription(transcription_id)
-        
+
         if not result:
+            logger.warning(f"❌ Transcription not found: {transcription_id}")
             return JSONResponse(
                 status_code=404,
                 content=ErrorResponse(
@@ -167,7 +210,14 @@ async def get_transcription(transcription_id: int):
                     message="Transcription not found or expired"
                 ).dict()
             )
-        
+
+        logger.info(f"📊 Transcription status for ID {transcription_id}: {result.status}")
+        if result.status == TranscriptionStatus.COMPLETED:
+            text_preview = result.text[:100] + "..." if result.text and len(result.text) > 100 else result.text
+            logger.info(f"✅ Transcription completed - Preview: {text_preview}")
+        elif result.status == TranscriptionStatus.FAILED:
+            logger.error(f"❌ Transcription failed for ID {transcription_id}: {result.error_message}")
+
         return result
         
     except Exception as e:

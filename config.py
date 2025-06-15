@@ -16,7 +16,11 @@ class Settings:
     # Server settings
     HOST = "0.0.0.0"
     PORT = int(os.getenv("PORT", 8000))
-    
+
+    # Logging settings
+    DEBUG_MODE = os.getenv("DEBUG", "false").lower() == "true"
+    LOG_TO_FILE = os.getenv("LOG_TO_FILE", "false").lower() == "true"
+
     # Render.com specific
     RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:8000")
 

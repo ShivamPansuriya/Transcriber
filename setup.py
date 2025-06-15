@@ -34,9 +34,10 @@ def install_python_dependencies():
     """Install Python dependencies"""
     commands = [
         ("pip install --upgrade pip", "Upgrading pip"),
+        ("pip install 'numpy<2.0.0'", "Installing compatible NumPy version"),
         ("pip install -r requirements.txt", "Installing Python packages")
     ]
-    
+
     for command, description in commands:
         if not run_command(command, description):
             return False
