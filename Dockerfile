@@ -17,6 +17,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir "numpy<2.0.0" && \
     pip install --no-cache-dir -r requirements.txt
 
+# Set environment variables for optimal performance
+ENV WHISPER_MODEL=tiny
+ENV MODEL_PRELOAD=true
+ENV DEBUG=false
+ENV PYTHONUNBUFFERED=1
+
 # Copy application code
 COPY . .
 
@@ -31,5 +37,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')"
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application with robust startup
+CMD ["python", "start_robust.py"]

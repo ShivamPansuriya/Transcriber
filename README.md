@@ -33,6 +33,10 @@ A free, production-ready video transcription service built with FastAPI and Open
 
 3. **Run the Service**
    ```bash
+   # Robust startup (recommended - prevents restarts)
+   python start_robust.py
+
+   # Or standard startup
    python main.py
    ```
 
@@ -252,7 +256,21 @@ Leave `language` empty for automatic detection.
 
 ### Common Issues
 
-1. **NumPy Compatibility Error**
+1. **Service Restarts/Memory Issues**
+   ```
+   Process killed (signal 9) or frequent restarts
+   ```
+   **Solution:**
+   ```bash
+   # Use robust startup (automatically optimizes settings)
+   python start_robust.py
+
+   # Or manually use tiny model
+   WHISPER_MODEL=tiny MODEL_PRELOAD=true python main.py
+   ```
+   **See:** [RESTART_TROUBLESHOOTING.md](RESTART_TROUBLESHOOTING.md)
+
+2. **NumPy Compatibility Error**
    ```
    A module that was compiled using NumPy 1.x cannot be run in NumPy 2.2.6
    ```

@@ -22,25 +22,69 @@ class TranscriptionService:
     def __init__(self):
         self._model = None
         self._model_loading = False
+        self._model_load_error = None
     
+    async def preload_model(self):
+        """Preload Whisper model during startup to avoid request timeouts"""
+        if self._model is not None:
+            logger.info("🤖 Whisper model already loaded")
+            return True
+
+        if self._model_load_error:
+            logger.error(f"❌ Previous model load failed: {self._model_load_error}")
+            return False
+
+        try:
+            logger.info(f"🚀 Preloading Whisper model: {settings.WHISPER_MODEL}")
+            logger.info("📥 This may take 30-60 seconds for first-time download...")
+            logger.info("⚡ Preloading during startup to avoid request timeouts...")
+
+            start_time = time.time()
+
+            # Run in thread pool to avoid blocking startup
+            loop = asyncio.get_event_loop()
+            self._model = await loop.run_in_executor(
+                None,
+                whisper.load_model,
+                settings.WHISPER_MODEL
+            )
+
+            load_time = time.time() - start_time
+            logger.info(f"✅ Whisper model preloaded successfully in {load_time:.2f} seconds")
+            logger.info("🎯 Service ready for transcription requests!")
+            return True
+
+        except Exception as e:
+            error_msg = f"Failed to preload Whisper model: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            self._model_load_error = error_msg
+            return False
+
     async def _load_model(self):
-        """Load Whisper model asynchronously"""
+        """Load Whisper model asynchronously (fallback if not preloaded)"""
         if self._model is not None:
             logger.info("🤖 Whisper model already loaded")
             return
+
+        if self._model_load_error:
+            logger.error(f"❌ Model load error: {self._model_load_error}")
+            raise Exception(self._model_load_error)
 
         if self._model_loading:
             logger.info("⏳ Whisper model is currently loading, waiting...")
             # Wait for model to load
             while self._model_loading:
                 await asyncio.sleep(0.1)
+            if self._model is None:
+                raise Exception("Model loading failed")
             logger.info("✅ Whisper model loading completed (waited)")
             return
 
+        # If we get here, model wasn't preloaded - try to load it now
+        logger.warning("⚠️ Model not preloaded, loading during request (may cause timeout)")
         self._model_loading = True
         try:
             logger.info(f"🤖 Loading Whisper model: {settings.WHISPER_MODEL}")
-            logger.info("📥 This may take 30-60 seconds for first-time download...")
             start_time = time.time()
 
             # Run in thread pool to avoid blocking
@@ -54,8 +98,10 @@ class TranscriptionService:
             load_time = time.time() - start_time
             logger.info(f"✅ Whisper model loaded successfully in {load_time:.2f} seconds")
         except Exception as e:
-            logger.error(f"❌ Failed to load Whisper model: {str(e)}")
-            raise
+            error_msg = f"Failed to load Whisper model: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            self._model_load_error = error_msg
+            raise Exception(error_msg)
         finally:
             self._model_loading = False
     
@@ -65,6 +111,11 @@ class TranscriptionService:
         logger.info(f"🎬 Starting video transcription for ID: {transcription_id}")
         logger.info(f"📊 Video size: {len(video_content) / (1024*1024):.2f}MB")
         logger.info(f"🌐 Language: {language or 'auto-detect'}")
+
+        # Check memory before starting
+        from restart_handler import check_service_health
+        if check_service_health():
+            logger.warning(f"⚠️ High memory usage detected before transcription {transcription_id}")
 
         try:
             # Update status to processing

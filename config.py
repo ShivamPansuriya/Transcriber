@@ -7,8 +7,13 @@ class Settings:
     ALLOWED_EXTENSIONS = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v']
     
     # Transcription settings
-    WHISPER_MODEL = "base"  # Options: tiny, base, small, medium, large
+    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny")  # Options: tiny, base, small, medium, large
     CLEANUP_INTERVAL_HOURS = 3.5  # Clean up after 3.5 hours
+
+    # Performance settings for free tier
+    MODEL_PRELOAD = os.getenv("MODEL_PRELOAD", "true").lower() == "true"
+    MAX_CONCURRENT_TRANSCRIPTIONS = 1  # Limit for free tier
+    REQUEST_TIMEOUT_SECONDS = 300  # 5 minutes max per request
     
     # Rate limiting
     RATE_LIMIT_REQUESTS = 10  # requests per minute per IP

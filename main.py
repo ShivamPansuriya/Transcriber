@@ -17,13 +17,20 @@ from models import (
 from storage import storage
 from transcription_service import transcription_service
 
-# Configure logging
+# Configure logging and restart prevention
 from logging_config import setup_logging, log_step, log_success, log_error, log_info, log_progress_summary
+from restart_handler import setup_restart_prevention, apply_optimal_settings, check_service_health
+
+# Apply optimal settings for the environment
+apply_optimal_settings()
 
 # Setup logging (can be controlled via environment variable)
 log_level = logging.DEBUG if os.getenv("DEBUG", "false").lower() == "true" else logging.INFO
 setup_logging(level=log_level, log_to_file=os.getenv("LOG_TO_FILE", "false").lower() == "true")
 logger = logging.getLogger(__name__)
+
+# Setup restart prevention
+setup_restart_prevention()
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -62,10 +69,23 @@ async def startup_event():
     logger.info(f"   🚦 Rate Limit: {settings.RATE_LIMIT_REQUESTS} requests/minute")
     logger.info(f"   🌐 Host: {settings.HOST}:{settings.PORT}")
     logger.info(f"   📁 Supported Formats: {', '.join(settings.ALLOWED_EXTENSIONS)}")
+    logger.info(f"   ⚡ Model Preload: {settings.MODEL_PRELOAD}")
     logger.info("=" * 50)
 
     log_step("Initializing storage cleanup task")
     await storage.start_cleanup_task()
+
+    # Preload Whisper model to avoid request timeouts
+    if settings.MODEL_PRELOAD:
+        log_step("Preloading Whisper model (prevents request timeouts)")
+        model_loaded = await transcription_service.preload_model()
+        if model_loaded:
+            log_success("Whisper model preloaded successfully")
+        else:
+            logger.warning("⚠️ Model preload failed - will try to load during requests")
+    else:
+        logger.info("⚠️ Model preload disabled - will load during first request")
+
     log_success("Service startup completed")
 
 @app.on_event("shutdown")
@@ -234,13 +254,35 @@ async def get_transcription(transcription_id: int):
 @app.get("/health")
 async def health_check():
     """Detailed health check"""
-    return {
-        "status": "healthy",
-        "timestamp": storage._storage.__len__() if hasattr(storage, '_storage') else 0,
-        "active_transcriptions": len([
-            t for t in storage._storage.values() 
+    # Check model status
+    model_status = "not_loaded"
+    if transcription_service._model is not None:
+        model_status = "loaded"
+    elif transcription_service._model_loading:
+        model_status = "loading"
+    elif transcription_service._model_load_error:
+        model_status = "error"
+
+    active_transcriptions = 0
+    total_transcriptions = 0
+
+    if hasattr(storage, '_storage'):
+        total_transcriptions = len(storage._storage)
+        active_transcriptions = len([
+            t for t in storage._storage.values()
             if t.status in [TranscriptionStatus.PENDING, TranscriptionStatus.PROCESSING]
-        ]) if hasattr(storage, '_storage') else 0
+        ])
+
+    return {
+        "status": "healthy" if model_status in ["loaded", "loading"] else "degraded",
+        "model_status": model_status,
+        "model_name": settings.WHISPER_MODEL,
+        "model_error": transcription_service._model_load_error,
+        "total_transcriptions": total_transcriptions,
+        "active_transcriptions": active_transcriptions,
+        "max_file_size_mb": settings.MAX_FILE_SIZE // (1024*1024),
+        "supported_formats": settings.ALLOWED_EXTENSIONS,
+        "uptime_check": datetime.now().isoformat()
     }
 
 if __name__ == "__main__":

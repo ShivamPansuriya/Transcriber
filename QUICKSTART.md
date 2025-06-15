@@ -14,8 +14,8 @@ venv\Scripts\activate
 # macOS/Linux:
 source venv/bin/activate
 
-# 3. Start the service
-python start.py
+# 3. Start the service (robust startup prevents restarts)
+python start_robust.py
 ```
 
 ## 🛠️ Option 2: Manual Setup
@@ -39,7 +39,9 @@ pip install -r requirements.txt
 # Linux: sudo apt-get install ffmpeg
 
 # 5. Start the service
-python main.py
+python start_robust.py  # Prevents restarts
+# OR
+python main.py         # Standard startup
 ```
 
 ## 🧪 Test Your Service
@@ -141,6 +143,10 @@ LOG_TO_FILE=true python main.py
 - **Health check**: http://localhost:8000/health
 
 ## 🎯 Common Issues
+
+**"Service keeps restarting"**
+- Run: `python start_robust.py` for automatic optimization
+- See: [RESTART_TROUBLESHOOTING.md](RESTART_TROUBLESHOOTING.md)
 
 **"NumPy compatibility error"**
 - Run: `python fix_numpy.py` to fix automatically
