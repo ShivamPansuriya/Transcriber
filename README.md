@@ -1,367 +1,108 @@
-# Video Transcription Service
+# Video Transcription Service - tubeMate
 
-A free, production-ready video transcription service built with FastAPI and OpenAI Whisper. Designed for deployment on Render.com's free tier with no transcription limits.
+This repository contains a complete video transcription service with support for both local deployment and Hugging Face Spaces deployment.
 
-## Features
+## 📁 Project Structure
 
-- 🎥 **Multiple Video Formats**: Supports MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V
-- 🗣️ **Free Speech-to-Text**: Uses OpenAI Whisper (completely free, no API limits)
-- 🌐 **REST API**: Simple endpoints for uploading and retrieving transcriptions
-- ⚡ **Async Processing**: Non-blocking transcription for better performance
-- 🛡️ **Rate Limiting**: Built-in protection against abuse
-- 🧹 **Auto Cleanup**: Automatic removal of old transcriptions (3.5 hours)
-- 📝 **Auto Documentation**: Interactive API docs at `/docs`
-- 🚀 **Render Ready**: Optimized for Render.com free tier deployment
+All project files have been organized into the `tubeMate` folder:
 
-## Quick Start
+```
+tubeMate/
+├── 📱 Core Application
+│   ├── main.py                    # FastAPI application entry point
+│   ├── app.py                     # Alternative Gradio+FastAPI app
+│   ├── config.py                  # Configuration settings
+│   ├── models.py                  # Pydantic data models
+│   ├── storage.py                 # In-memory storage manager
+│   ├── transcription_service.py   # Core transcription logic
+│   ├── logging_config.py          # Logging configuration
+│   └── restart_handler.py         # Service restart handling
+│
+├── 🚀 Deployment & Setup
+│   ├── requirements.txt           # Python dependencies
+│   ├── setup.py                   # Package setup
+│   ├── Dockerfile                 # Container configuration
+│   ├── start.py                   # Standard startup script
+│   └── start_robust.py            # Robust startup with optimization
+│
+├── 🤗 Hugging Face Integration
+│   ├── deploy_to_hf.py            # HF Spaces deployment script
+│   ├── hf_api_client.py           # HF Spaces API client
+│   └── hf_spaces_deploy/          # HF Spaces deployment files
+│       ├── app.py                 # Gradio+FastAPI hybrid app
+│       ├── config.py              # HF-optimized configuration
+│       ├── requirements.txt       # HF Spaces dependencies
+│       └── [other supporting files]
+│
+├── 🛠️ Utilities & Testing
+│   ├── example_client.py          # Example API client
+│   ├── test_api.py                # API testing script
+│   ├── fix_numpy.py               # NumPy compatibility fix
+│   └── log_monitor.py             # Log monitoring utility
+│
+└── 📚 Documentation
+    ├── README.md                  # Main project documentation
+    ├── README_HF.md               # Hugging Face specific docs
+    ├── HF_MIGRATION_GUIDE.md      # Migration guide to HF Spaces
+    ├── HF_DEPLOYMENT_SUMMARY.md   # HF deployment summary
+    ├── QUICKSTART.md              # Quick start guide
+    ├── DEPLOYMENT.md              # Deployment instructions
+    ├── LOGGING_GUIDE.md           # Logging configuration guide
+    └── RESTART_TROUBLESHOOTING.md # Troubleshooting guide
+```
+
+## 🚀 Quick Start
 
 ### Local Development
-
-1. **Clone and Setup**
-   ```bash
-   git clone <your-repo-url>
-   cd transcriber
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-2. **Install FFmpeg**
-   - **Windows**: Download from https://ffmpeg.org/download.html
-   - **macOS**: `brew install ffmpeg`
-   - **Linux**: `sudo apt-get install ffmpeg`
-
-3. **Run the Service**
-   ```bash
-   # Robust startup (recommended - prevents restarts)
-   python start_robust.py
-
-   # Or standard startup
-   python main.py
-   ```
-
-4. **Access the API**
-   - Service: http://localhost:8000
-   - Documentation: http://localhost:8000/docs
-   - Health Check: http://localhost:8000/health
-
-### Logging and Monitoring
-
-The service provides comprehensive step-by-step logging to track transcription progress:
-
-**Enable Debug Logging:**
 ```bash
-DEBUG=true python main.py
+cd tubeMate
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Standard startup
+python app.py
+
+# Or enhanced startup with port conflict resolution
+python start_with_port_detection.py
 ```
 
-**Enable File Logging:**
+### Hugging Face Spaces Deployment
 ```bash
-LOG_TO_FILE=true python main.py
+cd tubeMate
+python deploy_to_hf.py
+# Follow the instructions in HF_MIGRATION_GUIDE.md
 ```
 
-**Sample Log Output:**
-```
-2024-01-15 10:30:00 - main - INFO - 🚀 Starting transcription request for file: video.mp4
-2024-01-15 10:30:00 - main - INFO - 🌐 Language specified: auto-detect
-2024-01-15 10:30:00 - main - INFO - 📁 Validating file: video.mp4
-2024-01-15 10:30:00 - main - INFO - 🔍 File extension: .mp4
-2024-01-15 10:30:00 - main - INFO - ✅ File format validation passed: .mp4
-2024-01-15 10:30:00 - main - INFO - 📊 Reading file content for size validation...
-2024-01-15 10:30:00 - main - INFO - 📏 File size: 25.3MB (max: 100MB)
-2024-01-15 10:30:00 - main - INFO - ✅ File size validation passed: 25.3MB
-2024-01-15 10:30:00 - storage - INFO - 📝 Creating new transcription entry with ID: 1
-2024-01-15 10:30:00 - transcription_service - INFO - 🎬 Starting video transcription for ID: 1
-2024-01-15 10:30:00 - transcription_service - INFO - 🤖 Loading Whisper model: base
-2024-01-15 10:30:15 - transcription_service - INFO - ✅ Whisper model loaded successfully in 15.2 seconds
-2024-01-15 10:30:15 - transcription_service - INFO - 🎵 Extracting audio from video for transcription 1
-2024-01-15 10:30:18 - transcription_service - INFO - ✅ Audio extraction completed in 3.1 seconds
-2024-01-15 10:30:18 - transcription_service - INFO - 🗣️ Starting audio transcription for ID 1
-2024-01-15 10:30:45 - transcription_service - INFO - ✅ Transcription completed in 27.3 seconds
-2024-01-15 10:30:45 - transcription_service - INFO - 📝 Transcribed text length: 1247 characters
-2024-01-15 10:30:45 - transcription_service - INFO - 🌐 Detected language: en
-2024-01-15 10:30:45 - transcription_service - INFO - 🎉 Transcription 1 completed successfully in 45.6 seconds total
-```
+## 📖 Documentation
 
-### Deploy to Render.com
+- **Main Documentation**: `tubeMate/README.md`
+- **Hugging Face Guide**: `tubeMate/HF_MIGRATION_GUIDE.md`
+- **Quick Start**: `tubeMate/QUICKSTART.md`
+- **Deployment**: `tubeMate/DEPLOYMENT.md`
 
-1. **Push to GitHub**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin <your-github-repo-url>
-   git push -u origin main
-   ```
+## 🎯 Features
 
-2. **Deploy on Render**
-   - Go to [Render.com](https://render.com)
-   - Click "New +" → "Web Service"
-   - Connect your GitHub repository
-   - Render will automatically detect the `render.yaml` configuration
-   - Click "Deploy"
+- 🎥 Multiple video format support (MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V)
+- 🗣️ Free speech-to-text using OpenAI Whisper
+- 🌐 REST API with async processing
+- 🤗 Hugging Face Spaces integration with Gradio interface
+- ⚡ Rate limiting and auto cleanup
+- 📝 Comprehensive logging and monitoring
 
-3. **Configuration**
-   - The service will automatically use the free tier
-   - No environment variables needed (all configured automatically)
-   - Health checks are configured at `/health`
+## 🔧 Enhanced Features
 
-## API Documentation
+### **Recent Improvements:**
+- ✅ **Port Conflict Resolution**: Automatically finds available ports (no more "address already in use" errors)
+- ✅ **Smart Startup**: Enhanced startup scripts with port management
+- ✅ **Dependency Fixes**: Resolved Gradio compatibility issues
+- ✅ **Better Organization**: All files organized in tubeMate folder
 
-### Base URL
-- Local: `http://localhost:8000`
-- Render: `https://your-service-name.onrender.com`
-
-### Endpoints
-
-#### 1. Upload Video for Transcription
-
-**POST** `/transcribe`
-
-Upload a video file and get a transcription ID.
-
-**Request:**
-- **Content-Type**: `multipart/form-data`
-- **file**: Video file (required) - Max 100MB
-- **language**: Language code (optional) - e.g., 'en', 'es', 'fr'
-
-**Response:**
-```json
-{
-  "id": 123,
-  "status": "pending",
-  "message": "Transcription started. Use the ID to check status.",
-  "created_at": "2024-01-15T10:30:00Z"
-}
-```
-
-**Example using curl:**
-```bash
-curl -X POST "http://localhost:8000/transcribe" \
-  -F "file=@video.mp4" \
-  -F "language=en"
-```
-
-**Example using Python:**
-```python
-import requests
-
-with open('video.mp4', 'rb') as f:
-    response = requests.post(
-        'http://localhost:8000/transcribe',
-        files={'file': f},
-        data={'language': 'en'}  # optional
-    )
-    
-result = response.json()
-transcription_id = result['id']
-```
-
-#### 2. Get Transcription Status/Results
-
-**GET** `/transcribe/{id}`
-
-Check transcription status and retrieve results.
-
-**Response:**
-```json
-{
-  "id": 123,
-  "status": "completed",
-  "text": "Hello, this is the transcribed text from your video...",
-  "language": "en",
-  "duration": 45.6,
-  "created_at": "2024-01-15T10:30:00Z",
-  "completed_at": "2024-01-15T10:32:15Z",
-  "error_message": null
-}
-```
-
-**Status Values:**
-- `pending`: Transcription queued
-- `processing`: Currently transcribing
-- `completed`: Transcription finished successfully
-- `failed`: Transcription failed (check error_message)
-
-**Example:**
-```bash
-curl "http://localhost:8000/transcribe/123"
-```
-
-#### 3. Health Check
-
-**GET** `/health`
-
-Check service health and get statistics.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": 5,
-  "active_transcriptions": 2
-}
-```
-
-### Error Handling
-
-All errors return a consistent format:
-```json
-{
-  "id": 0,
-  "error": "error_type",
-  "message": "Human readable error message"
-}
-```
-
-**Common Error Codes:**
-- `400`: Bad request (invalid file, unsupported format)
-- `413`: File too large (>100MB)
-- `404`: Transcription not found or expired
-- `429`: Rate limit exceeded (>10 requests/minute)
-- `500`: Internal server error
-
-## Supported Languages
-
-Whisper supports 99+ languages including:
-- English (en)
-- Spanish (es)
-- French (fr)
-- German (de)
-- Italian (it)
-- Portuguese (pt)
-- Russian (ru)
-- Japanese (ja)
-- Korean (ko)
-- Chinese (zh)
-- Arabic (ar)
-- Hindi (hi)
-
-Leave `language` empty for automatic detection.
-
-## Limitations
-
-### Free Tier Constraints
-- **File Size**: 100MB maximum per video
-- **Rate Limiting**: 10 requests per minute per IP
-- **Storage**: Results stored for 3.5 hours only
-- **Processing**: Sequential processing (one video at a time)
-- **Cold Starts**: First request may take 30-60 seconds
-
-### Technical Limitations
-- **Video Length**: Longer videos take more time to process
-- **Memory**: Large videos may fail on free tier (512MB RAM limit)
-- **CPU**: Processing speed limited by free tier CPU allocation
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Service Restarts/Memory Issues**
-   ```
-   Process killed (signal 9) or frequent restarts
-   ```
-   **Solution:**
-   ```bash
-   # Use robust startup (automatically optimizes settings)
-   python start_robust.py
-
-   # Or manually use tiny model
-   WHISPER_MODEL=tiny MODEL_PRELOAD=true python main.py
-   ```
-   **See:** [RESTART_TROUBLESHOOTING.md](RESTART_TROUBLESHOOTING.md)
-
-2. **NumPy Compatibility Error**
-   ```
-   A module that was compiled using NumPy 1.x cannot be run in NumPy 2.2.6
-   ```
-   **Solution:**
-   ```bash
-   python fix_numpy.py
-   ```
-   Or manually:
-   ```bash
-   pip uninstall numpy
-   pip install 'numpy<2.0.0'
-   pip install --force-reinstall torch torchaudio openai-whisper
-   ```
-
-2. **"File too large" Error**
-   - Compress your video or use a shorter clip
-   - Maximum file size is 100MB
-
-3. **"Unsupported file format" Error**
-   - Convert to supported format: MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V
-
-4. **Slow Processing**
-   - First request loads the AI model (30-60 seconds)
-   - Subsequent requests are faster
-   - Longer videos take more time
-
-5. **"Transcription not found" Error**
-   - Transcriptions expire after 3.5 hours
-   - Check if the ID is correct
-
-6. **Rate Limit Exceeded**
-   - Wait 1 minute before making more requests
-   - Maximum 10 requests per minute per IP
-
-### Render.com Specific
-
-1. **Service Sleeping**
-   - Free tier services sleep after 15 minutes of inactivity
-   - First request after sleep takes 30-60 seconds
-
-2. **Build Failures**
-   - Check build logs in Render dashboard
-   - Ensure all dependencies are in requirements.txt
-
-3. **Memory Issues**
-   - Free tier has 512MB RAM limit
-   - Large videos may cause out-of-memory errors
-
-## Development
-
-### Project Structure
-```
-transcriber/
-├── main.py                 # FastAPI application
-├── transcription_service.py # Core transcription logic
-├── storage.py              # In-memory storage manager
-├── models.py               # Pydantic data models
-├── config.py               # Configuration settings
-├── requirements.txt        # Python dependencies
-├── Dockerfile              # Container configuration
-├── render.yaml             # Render deployment config
-└── README.md               # This file
-```
-
-### Adding Features
-
-1. **New Video Formats**: Add to `ALLOWED_EXTENSIONS` in `config.py`
-2. **Different Models**: Change `WHISPER_MODEL` in `config.py`
-3. **Longer Storage**: Modify `CLEANUP_INTERVAL_HOURS` in `config.py`
-4. **Rate Limits**: Adjust `RATE_LIMIT_REQUESTS` in `config.py`
-
-### Testing
-
-```bash
-# Install test dependencies
-pip install pytest httpx
-
-# Run tests (create test files as needed)
-pytest
-```
-
-## License
-
-MIT License - feel free to use for any purpose.
-
-## Support
-
-- 📖 **Documentation**: Visit `/docs` endpoint for interactive API docs
-- 🐛 **Issues**: Report bugs via GitHub issues
-- 💡 **Features**: Suggest improvements via GitHub discussions
+### **Cleaned Up:**
+- Removed `__pycache__/` directory (Python cache files)
+- Removed `render.yaml` (Render.com specific configuration)
+- Fixed dependency conflicts for Hugging Face Spaces deployment
 
 ---
 
-**Ready to transcribe? Upload your first video at `/docs` or use the API endpoints above!**
+**To get started, navigate to the `tubeMate` folder and follow the documentation there!**
