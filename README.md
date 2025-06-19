@@ -1,186 +1,181 @@
-# Video-to-Audio Extraction API
+# Video to Audio Extraction API
 
-A lightweight, memory-efficient API service that extracts audio from video files with automatic cleanup, optimized for Render.com's free tier (512MB RAM limit).
+A simple Flask API that extracts audio from video files using FFmpeg. Videos are automatically deleted after audio extraction, and audio files are deleted after download.
 
 ## Features
 
-- **Video Upload & Audio Extraction**: Upload video files and get audio extracted automatically
-- **Memory Optimized**: Immediate file cleanup and minimal memory footprint
-- **Automatic Cleanup**: Files are deleted immediately after processing/serving
-- **ID-based Access**: Secure file access using unique IDs
-- **Multiple Formats**: Supports MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V, 3GP
-- **Production Ready**: Configured for Render.com deployment
+- Upload video files (MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V)
+- Extract audio to MP3 format
+- Automatic file cleanup
+- Asynchronous processing
+- RESTful API with task tracking
 
 ## API Endpoints
 
-### POST `/upload`
-Upload a video file and extract audio.
+### 1. Upload Video
+```
+POST /upload
+```
+Upload a video file for audio extraction.
 
 **Request:**
-- Method: `POST`
-- Content-Type: `multipart/form-data`
-- Body: Video file in `file` field
+- Content-Type: multipart/form-data
+- Body: video file (max 100MB)
 
 **Response:**
 ```json
 {
-  "success": true,
-  "audio_id": "unique-audio-id",
-  "message": "Audio extracted successfully"
+  "task_id": "uuid-string",
+  "status": "queued",
+  "original_filename": "video.mp4",
+  "message": "Video uploaded successfully. Processing started."
 }
 ```
 
-### GET `/audio/<audio_id>`
-Download audio file by ID. **File is automatically deleted after download.**
-
-**Request:**
-- Method: `GET`
-- Path: `/audio/{audio_id}`
+### 2. Check Status
+```
+GET /status/<task_id>
+```
+Check the processing status of your video.
 
 **Response:**
-- Audio file download (MP3 format)
-- File is deleted immediately after successful download
-
-### GET `/health`
-Health check endpoint with service statistics.
-
-### GET `/stats`
-Get detailed service statistics and configuration.
-
-## Quick Start
-
-### Local Development
-
-1. **Install Dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-2. **Install FFmpeg:**
-   - **Windows**: Download from https://ffmpeg.org/download.html
-   - **macOS**: `brew install ffmpeg`
-   - **Linux**: `sudo apt-get install ffmpeg`
-
-3. **Run the Service:**
-```bash
-python app.py
-```
-
-The service will be available at `http://localhost:5000`
-
-### Deploy to Render.com
-
-1. **Connect Repository:**
-   - Push this code to a GitHub repository
-   - Connect the repository to Render.com
-
-2. **Deploy:**
-   - Render will automatically detect the `Dockerfile`
-   - The service will be deployed with FFmpeg pre-installed
-   - No additional configuration needed
-
-## Usage Examples
-
-### Upload Video and Extract Audio
-```bash
-curl -X POST \
-  -F "file=@video.mp4" \
-  http://your-service-url/upload
-```
-
-Response:
 ```json
 {
-  "success": true,
-  "audio_id": "abc123-def456-ghi789",
-  "message": "Audio extracted successfully"
+  "task_id": "uuid-string",
+  "status": "completed|processing|queued|failed",
+  "original_filename": "video.mp4"
 }
 ```
 
-### Download Audio File
+### 3. Download Audio
+```
+GET /audio/<task_id>
+```
+Download the extracted audio file. **Note:** Audio file is deleted after download.
+
+**Response:**
+- Content-Type: audio/mpeg
+- File download (MP3 format)
+
+## Usage Example
+
+### Using curl:
+
+1. **Upload video:**
 ```bash
-curl -O -J \
-  http://your-service-url/audio/abc123-def456-ghi789
+curl -X POST -F "video=@your-video.mp4" http://your-app-url/upload
 ```
 
-## Configuration
+2. **Check status:**
+```bash
+curl http://your-app-url/status/YOUR_TASK_ID
+```
 
-### Environment Variables
-- `FLASK_ENV`: Set to `production` for deployment
-- `LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
-- `PORT`: Server port (automatically set by Render.com)
+3. **Download audio:**
+```bash
+curl -O -J http://your-app-url/audio/YOUR_TASK_ID
+```
 
-### File Limits
-- **Maximum file size**: 100MB
-- **Supported formats**: MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V, 3GP
-- **Output format**: MP3 (128kbps, stereo, 44.1kHz)
+### Using Python requests:
 
-## Memory Management
+```python
+import requests
+import time
 
-The service is optimized for memory-constrained environments:
+# Upload video
+with open('video.mp4', 'rb') as f:
+    response = requests.post('http://your-app-url/upload', files={'video': f})
+    task_id = response.json()['task_id']
 
-- **Immediate Cleanup**: Video files deleted after audio extraction
-- **Auto-deletion**: Audio files deleted after download
-- **Background Cleanup**: Orphaned files cleaned up automatically
-- **Memory Monitoring**: Built-in memory usage logging
-- **Efficient Processing**: Streaming file processing without loading into memory
+# Wait for processing
+while True:
+    status = requests.get(f'http://your-app-url/status/{task_id}').json()
+    if status['status'] == 'completed':
+        break
+    elif status['status'] == 'failed':
+        print(f"Error: {status['error']}")
+        exit()
+    time.sleep(5)
 
-## Architecture
+# Download audio
+audio_response = requests.get(f'http://your-app-url/audio/{task_id}')
+with open('extracted_audio.mp3', 'wb') as f:
+    f.write(audio_response.content)
+```
 
-- **Framework**: Flask (lightweight)
-- **Audio Processing**: FFmpeg via ffmpeg-python
-- **File Management**: In-memory ID mapping with automatic cleanup
-- **Deployment**: Gunicorn WSGI server
-- **Storage**: Temporary files with immediate cleanup
+## Deployment on Render
 
-## Error Handling
+1. **Create a new Web Service** on Render
+2. **Connect your GitHub repository** containing these files
+3. **Configure the service:**
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 300 app:app`
+   - Environment: `Python 3`
 
-The service includes comprehensive error handling:
-- Invalid file formats
-- File size limits
-- Processing failures
-- Missing files
-- Memory constraints
+4. **Add environment variables** (if needed):
+   - `PORT` (automatically set by Render)
 
-## Monitoring
+5. **Deploy** and wait for the build to complete
 
-- Health check endpoint: `/health`
-- Statistics endpoint: `/stats`
-- Detailed logging with memory usage tracking
-- Automatic cleanup reporting
+### Alternative: Docker Deployment on Render
 
-## Security
+1. Make sure your repository has the Dockerfile
+2. In Render, select **Docker** as the environment
+3. Render will automatically detect and use the Dockerfile
 
-- Secure filename handling
+## File Structure
+
+```
+project/
+├── app.py              # Main Flask application
+├── requirements.txt    # Python dependencies
+├── Dockerfile         # Docker configuration (optional)
+└── README.md          # This file
+```
+
+## Important Notes
+
+- **File Limits:** Maximum file size is 100MB
+- **Cleanup:** Video files are deleted immediately after processing
+- **Cleanup:** Audio files are deleted after download
+- **Cleanup:** Old files and tasks are automatically cleaned up after 1 hour
+- **Processing Time:** Large files may take several minutes to process
+- **Supported Formats:** MP4, AVI, MOV, MKV, WMV, FLV, WebM, M4V
+
+## Dependencies
+
+- **Flask:** Web framework
+- **FFmpeg:** Audio/video processing (installed via system packages)
+- **Gunicorn:** WSGI server for production
+
+## Security Considerations
+
 - File type validation
-- Temporary file isolation
-- Automatic cleanup prevents file accumulation
+- File size limits
+- Secure filename handling
+- Automatic cleanup to prevent disk space issues
 - No persistent storage of user files
-
-## Limitations
-
-- **Free Tier Optimized**: Designed for Render.com's 512MB RAM limit
-- **Single Worker**: Uses one worker process to minimize memory usage
-- **Temporary Storage**: Files are not persisted beyond processing
-- **Processing Time**: Large files may take time to process
 
 ## Troubleshooting
 
-### Common Issues
+1. **"Task not found" error:** The task may have expired (> 1 hour old)
+2. **"Audio not ready" error:** Processing is still in progress, check status again
+3. **Large file uploads:** May take longer to process, be patient
+4. **FFmpeg errors:** Check that the video file is not corrupted
 
-1. **File Too Large**: Reduce file size or split into smaller segments
-2. **Unsupported Format**: Convert to supported format first
-3. **Processing Timeout**: Large files may timeout on free tier
-4. **Memory Issues**: Service automatically manages memory and cleanup
+## Local Development
 
-### Logs
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-Check application logs for detailed error information:
-- File processing status
-- Memory usage
-- Cleanup operations
-- Error details
+# Install FFmpeg (system dependency)
+# Ubuntu/Debian: sudo apt install ffmpeg
+# macOS: brew install ffmpeg
+# Windows: Download from https://ffmpeg.org/
 
-## License
+# Run the application
+python app.py
+```
 
-This project is open source and available under the MIT License.
+The API will be available at `http://localhost:5000`
