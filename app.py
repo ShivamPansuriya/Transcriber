@@ -115,6 +115,103 @@ def cleanup_old_files():
 cleanup_thread = threading.Thread(target=cleanup_old_files, daemon=True)
 cleanup_thread.start()
 
+@app.route('/upload-any', methods=['POST'])
+def upload_any_video():
+    """More lenient upload endpoint that accepts any file type"""
+    try:
+        # Debug: Log all form fields
+        print("Form files:", list(request.files.keys()))
+        print("Form data:", list(request.form.keys()))
+        
+        if 'video' not in request.files:
+            available_files = list(request.files.keys())
+            return jsonify({
+                'error': 'No video file provided', 
+                'expected_field': 'video',
+                'available_fields': available_files
+            }), 400
+        
+        file = request.files['video']
+        if file.filename == '' or file.filename is None:
+            return jsonify({'error': 'No file selected or filename is empty'}), 400
+        
+        # Generate unique task ID
+        task_id = str(uuid.uuid4())
+        
+        # Generate filename - be more flexible
+        if file.filename and '.' in file.filename:
+            original_filename = secure_filename(file.filename)
+            file_extension = original_filename.rsplit('.', 1)[1].lower()
+        else:
+            original_filename = "video.mp4"  # Default
+            file_extension = 'mp4'
+        
+        # Create unique filenames
+        video_filename = f"{task_id}.{file_extension}"
+        audio_filename = f"{task_id}.mp3"
+        
+        video_path = os.path.join(UPLOAD_FOLDER, video_filename)
+        audio_path = os.path.join(AUDIO_FOLDER, audio_filename)
+        
+        # Save uploaded video
+        file.save(video_path)
+        
+        # Check file size after saving
+        if os.path.getsize(video_path) > MAX_FILE_SIZE:
+            os.remove(video_path)
+            return jsonify({'error': 'File too large (max 100MB)'}), 400
+        
+        # Initialize processing status
+        processing_status[task_id] = {
+            'status': 'queued',
+            'created_at': time.time(),
+            'original_filename': original_filename
+        }
+        
+        # Start background processing
+        thread = threading.Thread(
+            target=process_video_async,
+            args=(task_id, video_path, audio_path)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'task_id': task_id,
+            'status': 'queued',
+            'original_filename': original_filename,
+            'message': 'Video uploaded successfully. Processing started.',
+            'debug_info': {
+                'received_filename': file.filename,
+                'content_type': file.content_type,
+                'file_size': os.path.getsize(video_path)
+            }
+        }), 202
+        
+    except Exception as e:
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+@app.route('/test-upload', methods=['POST'])
+def test_upload():
+    """Debug endpoint to see what data is being received"""
+    try:
+        return jsonify({
+            'files': list(request.files.keys()),
+            'form_data': list(request.form.keys()),
+            'content_type': request.content_type,
+            'content_length': request.content_length,
+            'method': request.method,
+            'file_details': {
+                key: {
+                    'filename': file.filename,
+                    'content_type': file.content_type,
+                    'size': len(file.read()) if hasattr(file, 'read') else 'unknown'
+                } for key, file in request.files.items()
+            } if request.files else {}
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
@@ -129,25 +226,69 @@ def home():
 @app.route('/upload', methods=['POST'])
 def upload_video():
     try:
+        # Debug: Log all form fields
+        print("Form files:", list(request.files.keys()))
+        print("Form data:", list(request.form.keys()))
+        
         if 'video' not in request.files:
-            return jsonify({'error': 'No video file provided'}), 400
+            available_files = list(request.files.keys())
+            return jsonify({
+                'error': 'No video file provided', 
+                'expected_field': 'video',
+                'available_fields': available_files,
+                'all_form_data': list(request.form.keys())
+            }), 400
         
         file = request.files['video']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+        if file.filename == '' or file.filename is None:
+            return jsonify({'error': 'No file selected or filename is empty'}), 400
         
-        if not allowed_file(file.filename, ALLOWED_VIDEO_EXTENSIONS):
+        # Debug: Check filename and content type
+        print(f"Filename: {file.filename}")
+        print(f"Content-Type: {file.content_type}")
+        
+        # Check file type by extension or content-type
+        is_valid_file = False
+        
+        if file.filename and allowed_file(file.filename, ALLOWED_VIDEO_EXTENSIONS):
+            is_valid_file = True
+        elif file.content_type and any(video_type in file.content_type.lower() for video_type in ['video/', 'application/octet-stream']):
+            is_valid_file = True
+        
+        if not is_valid_file:
             return jsonify({
                 'error': 'Invalid file type',
-                'allowed_types': list(ALLOWED_VIDEO_EXTENSIONS)
+                'filename': file.filename,
+                'content_type': file.content_type,
+                'allowed_types': list(ALLOWED_VIDEO_EXTENSIONS),
+                'note': 'File must have proper extension or video content-type'
             }), 400
         
         # Generate unique task ID
         task_id = str(uuid.uuid4())
         
-        # Secure filename
-        original_filename = secure_filename(file.filename)
-        file_extension = original_filename.rsplit('.', 1)[1].lower()
+        # Generate filename with proper extension
+        if file.filename and '.' in file.filename:
+            original_filename = secure_filename(file.filename)
+            file_extension = original_filename.rsplit('.', 1)[1].lower()
+        else:
+            # If no filename or extension, try to determine from content-type
+            original_filename = "video"
+            if file.content_type:
+                content_type_map = {
+                    'video/mp4': 'mp4',
+                    'video/avi': 'avi',
+                    'video/quicktime': 'mov',
+                    'video/x-msvideo': 'avi',
+                    'video/webm': 'webm',
+                    'video/x-ms-wmv': 'wmv',
+                    'video/x-flv': 'flv'
+                }
+                file_extension = content_type_map.get(file.content_type.lower(), 'mp4')
+            else:
+                file_extension = 'mp4'  # Default to mp4
+            
+            original_filename = f"video.{file_extension}"
         
         # Create unique filenames
         video_filename = f"{task_id}.{file_extension}"
