@@ -75,7 +75,7 @@ The service will be available at `http://localhost:5000`
    - Connect the repository to Render.com
 
 2. **Deploy:**
-   - Render will automatically detect the `render.yaml` configuration
+   - Render will automatically detect the `Dockerfile`
    - The service will be deployed with FFmpeg pre-installed
    - No additional configuration needed
 

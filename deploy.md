@@ -49,14 +49,14 @@ git push -u origin main
    - **Auto-Deploy**: Yes (recommended)
    - **Health Check Path**: `/health`
 
-### 3. Alternative: Use render.yaml (Recommended)
+### 3. Docker Deployment (Automatic)
 
-The included `render.yaml` file contains all the configuration. Render will automatically detect and use it:
+The included `Dockerfile` contains all the configuration. Render will automatically detect and use it:
 
-1. Just push your code to GitHub
+1. Just push your code to GitHub (including the Dockerfile)
 2. Connect the repository to Render
-3. Render will automatically use the `render.yaml` configuration
-4. No manual configuration needed!
+3. Render will automatically detect the Dockerfile and build a container
+4. No manual configuration needed - FFmpeg is automatically installed!
 
 ### 4. Verify Deployment
 
