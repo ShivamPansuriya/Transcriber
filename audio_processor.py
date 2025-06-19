@@ -103,18 +103,20 @@ class AudioProcessor:
                 map_metadata=-1,  # Remove metadata to reduce file size
                 y=None  # Overwrite output file if exists
             )
-            
+
             # Run ffmpeg with error capture
-            ffmpeg.run(stream, capture_stdout=True, capture_stderr=True, check=True)
-            
+            out, err = ffmpeg.run(stream, capture_stdout=True, capture_stderr=True)
+
             logger.info("FFmpeg extraction completed successfully")
             return True, None
-            
+
         except ffmpeg.Error as e:
-            error_msg = f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}"
+            # Handle FFmpeg errors properly
+            stderr_output = e.stderr.decode('utf-8') if e.stderr else 'No error details available'
+            error_msg = f"FFmpeg error: {stderr_output}"
             logger.error(error_msg)
             return False, error_msg
-        
+
         except Exception as e:
             error_msg = f"Unexpected error during FFmpeg execution: {str(e)}"
             logger.error(error_msg)

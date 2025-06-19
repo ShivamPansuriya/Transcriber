@@ -38,6 +38,15 @@ python validate_deployment.py
 - If issues persist, check the build logs in Render dashboard
 - Verify the Dockerfile includes: `ffmpeg \` in the apt-get install command
 
+### 4. FFmpeg "check" Parameter Error
+
+**Problem**: Error: `run() got an unexpected keyword argument 'check'`
+**Solution**:
+- This was fixed in the latest version
+- The issue was with ffmpeg-python 0.2.0 compatibility
+- The fix removes the unsupported `check=True` parameter
+- Error handling now properly captures FFmpeg output
+
 ### 4. Port Binding Issues
 
 **Problem**: Service starts but isn't accessible
